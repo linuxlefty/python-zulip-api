@@ -1,7 +1,11 @@
 from __future__ import annotations
+
 import enum
+from typing import cast
+
 from hashids import Hashids
 from peewee import SqliteDatabase, Model, CharField, IntegerField, ForeignKeyField, BooleanField
+
 
 hashids = Hashids()
 db = SqliteDatabase(None)
@@ -121,7 +125,7 @@ class Keygen:
 
     @classmethod
     def encode(cls, obj: ProjectList | Project | Context | Task) -> str:
-        return hashids.encode(cls.MODEL_2_ORD[obj.__class__], obj.id)
+        return hashids.encode(cls.MODEL_2_ORD[obj.__class__], cast(int, obj.id))
 
     @classmethod
     def decode(cls, key: str) -> Model:
