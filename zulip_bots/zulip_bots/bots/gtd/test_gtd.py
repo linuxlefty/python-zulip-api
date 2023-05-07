@@ -1,7 +1,7 @@
 from zulip_bots.test_lib import BotTestCase, DefaultTests, StubBotHandler
 from zulip_bots.bots.gtd.gtd import GTDHandler
 from zulip_bots.bots.gtd.lib.model import DB, MODELS
-from typing import Any
+from typing import Any, Iterable
 from unittest.mock import Mock, patch
 import pytest
 
@@ -21,7 +21,25 @@ class TestHelpBot(BotTestCase, DefaultTests):
 
     def _get_handlers(self) -> tuple[Any, StubBotHandler]:
         bot, bot_handler = super()._get_handlers()
+
+        def _mock_add_subscriptions(
+            streams: Iterable[dict[str, Any]], **kwargs: Any
+        ) -> dict[str, Any]:
+            bot_handler.transcript.append(
+                ("add_subscriptions", dict(streams=streams, kwargs=kwargs))
+            )
+            return dict(result="success")
+
+        def _mock_send_message(message: dict[str, Any]) -> dict[str, Any]:
+            bot_handler.transcript.append(("send_message", message))
+            result = bot_handler.message_server.send(message)
+            result["result"] = "success"
+            return result
+
         bot_handler._client = Mock()  # type: ignore
+        bot_handler._client.get_stream_id = Mock(return_value=dict(result="success", stream_id=42))  # type: ignore
+        bot_handler._client.add_subscriptions = _mock_add_subscriptions  # type: ignore
+        bot_handler.send_message = _mock_send_message  # type: ignore
         return bot, bot_handler
 
     def make_request_message(
@@ -33,9 +51,12 @@ class TestHelpBot(BotTestCase, DefaultTests):
         return message
 
     def get_transcript(
-        self, request: str
+        self, request: str, bot: Any = None, bot_handler: StubBotHandler | None = None
     ) -> tuple[Any, StubBotHandler, list[tuple[str, dict[str, Any]]]]:
-        bot, bot_handler = self._get_handlers()
+        _bot, _bot_handler = self._get_handlers()
+        bot = bot or _bot
+        bot_handler = bot_handler or _bot_handler
+
         message = self.make_request_message(request)
         bot_handler.reset_transcript()
         bot.handle_message(message, bot_handler)
@@ -50,29 +71,29 @@ class TestHelpBot(BotTestCase, DefaultTests):
         self.verify_dialog(dialog)
 
     def test_inbox_should_create_inbox_if_it_does_not_exist(self) -> None:
-        _, bot_handler, _ = self.get_transcript("inbox some task")
-        args, kwargs = bot_handler._client.add_subscriptions.call_args  # type: ignore
-        assert kwargs["streams"][0]["name"] == "Inbox"
+        _, bot_handler, transcript = self.get_transcript("inbox some task")
+        assert dict(transcript)["add_subscriptions"]["streams"][0]["name"] == "Inbox"
 
     def test_inbox_should_link_a_new_message(self) -> None:
         _, _, transcript = self.get_transcript("inbox some task")
-        assert len(transcript) == 2
+        assert len(transcript) == 3
         transcript_dict = dict(transcript)
+        assert "add_subscriptions" in transcript_dict
         assert transcript_dict["send_message"]["subject"] == "some task"
         assert (
             transcript_dict["send_message"]["content"] == "Created from #**foo_stream>foo_subject"
         )
-        assert transcript_dict["send_reply"]["content"] == "Created #**@Laptop>some task**"
+        assert transcript_dict["send_reply"]["content"] == "Created #**Inbox>some task**"
 
     def test_todo_should_create_context_if_it_does_not_exist(self) -> None:
-        _, bot_handler, _ = self.get_transcript("todo #**@Laptop** some task")
-        args, kwargs = bot_handler._client.add_subscriptions.call_args  # type: ignore
-        assert kwargs["streams"][0]["name"] == "@Laptop"
+        _, bot_handler, transcript = self.get_transcript("todo #**@Laptop** some task")
+        assert dict(transcript)["add_subscriptions"]["streams"][0]["name"] == "@Laptop"
 
     def test_inbox_should_link_a_new_todo_message(self) -> None:
         _, _, transcript = self.get_transcript("todo #**@Laptop** some task")
-        assert len(transcript) == 2
+        assert len(transcript) == 3
         transcript_dict = dict(transcript)
+        assert "add_subscriptions" in transcript_dict
         assert transcript_dict["send_message"]["subject"] == "some task"
         assert (
             transcript_dict["send_message"]["content"] == "Created from #**foo_stream>foo_subject"
