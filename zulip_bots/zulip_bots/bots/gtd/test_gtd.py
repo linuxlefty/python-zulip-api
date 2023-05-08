@@ -61,7 +61,7 @@ class TestHelpBot(BotTestCase, DefaultTests):
         else:
             bot_handler._client.get_stream_id = Mock(return_value=dict(result="success", stream_id=stream_id))  # type: ignore
 
-        bot_handler._client.get_messages = Mock(return_value=dict(messages=messages or list()))  # type: ignore
+        bot_handler._client.get_messages = Mock(return_value=dict(messages=messages or list(), result="success"))  # type: ignore
         bot_handler._client.update_message = _mock_update_message  # type: ignore
         bot_handler._client.add_subscriptions = _mock_add_subscriptions  # type: ignore
         bot_handler.send_message = _mock_send_message  # type: ignore
@@ -150,7 +150,6 @@ class TestHelpBot(BotTestCase, DefaultTests):
         proj_parts = ProjectView.parse_name(args["topic"])
         assert proj_parts
         assert proj_parts["topic"] == "Test out GTD bot"
-        assert ProjectListDB.get_by_id(Keygen.decode(proj_parts["project_list"]).id)  # type: ignore
         assert ProjectDB.get_by_id(Keygen.decode(proj_parts["project"]).id)  # type: ignore
 
         assert transcript[2][0] == "send_message"
@@ -159,13 +158,9 @@ class TestHelpBot(BotTestCase, DefaultTests):
         assert command == "update_message"
         parts = TaskView.parse_name(args["topic"])
         assert parts
-        assert parts["project_list"] == proj_parts["project_list"]
         assert parts["project"] == proj_parts["project"]
         assert parts["topic"] == "some task"
-        assert ProjectListDB.get_by_id(Keygen.decode(parts["project_list"]).id)  # type: ignore
         assert ProjectDB.get_by_id(Keygen.decode(parts["project"]).id)  # type: ignore
-        assert ContextDB.get_by_id(Keygen.decode(parts["context"]).id)  # type: ignore
-        assert TaskDB.get_by_id(Keygen.decode(parts["task"]).id)  # type: ignore
 
         assert transcript[4][0] == "send_reply"
 

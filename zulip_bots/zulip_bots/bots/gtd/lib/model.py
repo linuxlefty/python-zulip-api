@@ -160,9 +160,11 @@ class Keygen:
         return model.select().where(model.id == id).get()
 
     @classmethod
-    def decode_id(cls, key: str) -> int:
-        _, id = hashids.decode(key)
-        return id
+    def decode_id(cls, key: str) -> int | None:
+        result = hashids.decode(key)
+        if result:
+            return result[1]
+        return None
 
     @classmethod
     def decode_all(cls, multikey: str) -> dict[str, Model]:
