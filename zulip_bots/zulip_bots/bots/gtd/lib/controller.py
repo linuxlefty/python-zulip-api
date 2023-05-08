@@ -1,3 +1,4 @@
+import structlog
 from typing import TypeVar, Generic
 
 import zulip
@@ -10,11 +11,15 @@ T = TypeVar("T")
 class BaseController(Generic[T]):
     def __init__(self, client: zulip.Client):
         self.client = client
+        self.log = structlog.get_logger()
 
     def find(self, **kwargs) -> T:
+        kwargs.setdefault("id", None)
         for name in sorted(dir(self)):
             if name.startswith("_finder_") and callable((attribute := getattr(self, name))):
+                self.log.debug("executing finder", finder=name, kwargs=kwargs)
                 if result := attribute(**kwargs):
+                    self.log.debug("finder successful", result=result)
                     return result
 
         raise ValueError(f"Unable to find {self.__class__.__name__}: {kwargs}")
@@ -39,7 +44,7 @@ class ProjectList(BaseController[Model.ProjectList]):
         )
 
     def _finder_3_it_is_a_project(self, name: str | None, **_) -> Model.ProjectList | None:
-        if name and name.startswith("Project."):
+        if name and name.startswith("Projects"):
             assert (response := self.client.get_stream_id(name))["result"] == "success", response[
                 "msg"
             ]
@@ -82,25 +87,31 @@ class Project(BaseController[Model.Project]):
             return Model.Project.upsert(id, name, project_list, completed)
         return None
 
-    def _finder_2_the_key_is_embedded_in_the_name(self, name: str, **_) -> Model.Project | None:
+    def _finder_2_the_key_is_embedded_in_the_name(
+        self, name: str, project_list: Model.ProjectList, completed: bool, **_
+    ) -> Model.Project | None:
         if (groups := View.Project.parse_name(name)) and (id := groups.get("project")):
-            return Model.Project.get_by_id(id)
+            return self._finder_1_all_fields_exist(
+                Model.Keygen.decode_id(id), name, project_list, completed
+            )
         return None
 
     def _finder_3_we_can_find_the_parent_message_in_zulip(
-        self, name: str, project_list: Model.ProjectList, completed: bool
-    ) -> None:
+        self, name: str, project_list: Model.ProjectList, completed: bool, **_
+    ) -> Model.Project | None:
         obj = Model.Project(name=name, project_list=project_list, completed=completed)
-        fmt = View.Project(obj, self.client)
-        if fmt.init():
+        view = View.Project(obj, self.client)
+        if view.init():
             Model.Project.upsert(obj.id, obj.name, obj.project_list, obj.completed)
 
         # If the name changed, we need to send that back to Zulip
-        if "name" in fmt.dirty:
+        if "name" in view.dirty:
             result = self.client.update_message(
                 dict(message_id=obj.id, topic=obj.name, propogate_mode="change_all")
             )
-            assert result["success"], result["msg"]
+            assert result["result"] == "success", result["msg"]
+
+        return obj
 
 
 class Task(BaseController[Model.Task]):
@@ -111,21 +122,25 @@ class Task(BaseController[Model.Task]):
             return Model.Task.upsert(id, name, project, context, completed)
         return None
 
-    def _finder_2_the_key_is_embedded_in_the_name(self, name: str, **_) -> Model.Task | None:
+    def _finder_2_the_key_is_embedded_in_the_name(
+        self, name: str, project: Model.Project, context: Model.Context, completed: bool, **_
+    ) -> Model.Task | None:
         if (groups := View.Task.parse_name(name)) and (id := groups.get("task")):
-            return Model.Task.get_by_id(id)
+            return self._finder_1_all_fields_exist(
+                Model.Keygen.decode_id(id), name, project, context, completed
+            )
         return None
 
     def _finder_3_we_can_find_the_parent_message_in_zulip(
         self, name: str, project: Model.Project, context: Context, completed: bool
     ) -> None:
         obj = Model.Task(name=name, project=project, context=context, completed=completed)
-        fmt = View.Task(obj, self.client)
-        if fmt.init():
+        view = View.Task(obj, self.client)
+        if view.init():
             Model.Task.upsert(obj.id, obj.name, obj.project, obj.context, obj.completed)
 
         # If the name changed, we need to send that back to Zulip
-        if "name" in fmt.dirty:
+        if "name" in view.dirty:
             result = self.client.update_message(
                 dict(message_id=obj.id, topic=obj.name, propogate_mode="change_all")
             )

@@ -1,11 +1,11 @@
 # See readme.md for instructions on running this code.
 
 import textwrap
+import structlog
 import re
-from ulid import ULID
+import uuid
 
 import zulip
-from zulip_bots.bots.gtd.lib.util import _Logger
 import zulip_bots.bots.gtd.lib.model as Model
 import zulip_bots.bots.gtd.lib.view as View
 from zulip_bots.bots.gtd.lib.controller import ProjectList, Project, Context, Task
@@ -36,7 +36,7 @@ class GTDHandler:
         self.db = db
 
     def initialize(self, bot_handler: BotHandler) -> None:
-        self.log = _Logger(self.__class__.__name__)
+        self.log = structlog.get_logger()
         if self.db is None:
             if not (db_file := bot_handler.get_config_info("gtd").get("db_file")):
                 raise ValueError("`db_file` not provided in the config")
@@ -60,12 +60,7 @@ class GTDHandler:
         self, description: str, user_id: int, stream: str, client: zulip.Client
     ) -> int:
         response = client.add_subscriptions(
-            streams=[
-                {
-                    "name": stream,
-                    "description": "Catch-all for incoming stuff",
-                }
-            ],
+            streams=[{"name": stream, "description": description}],
             principals=[user_id],
             authorization_errors_fatal=True,
             announce=True,
@@ -86,7 +81,7 @@ class GTDHandler:
     ) -> None:
         assert self.db
         if source["display_recipient"].startswith("Projects.") and stream.startswith("@"):
-            self.log.log("Project and context detected. Updating database")
+            self.log.info("Project and context detected. Updating database")
             with self.db as db:
                 project_list = ProjectList(client).find(
                     id=source["stream_id"], name=source["display_recipient"]
@@ -94,25 +89,18 @@ class GTDHandler:
                 project = Project(client).find(
                     name=source["subject"],
                     project_list=project_list,
-                    resolved=source["subject"].startswith("✔"),
+                    completed=source["subject"].startswith("✔"),
                 )
                 context = Context(client).find(id=stream_id, name=stream)
-                task = Model.Task(
-                    name=subject,
-                    project=project,
-                    context=context,
-                    completed=subject.startswith("✔"),
-                )
-                View.Task(task, client).init()  # Set up the subject links
 
                 response = bot_handler.send_message(
                     dict(
                         type="stream",
                         to=context.name,
-                        subject=task.name,
+                        subject=(temp_task_name := str(uuid.uuid4())),
                         content=(
                             # Have a link back origining message unless this is a PM
-                            f"Created from #**{source['display_recipient']}>{source['subject']}"
+                            f"Created from #**{source['display_recipient']}>{project.name}**"
                             if source["type"] == "stream"
                             else subject
                         ),
@@ -121,15 +109,30 @@ class GTDHandler:
                 assert response
                 assert response and response["result"] == "success", response["msg"]
 
-                Model.Task.upsert(
+                # Now that the task has been created and we have an ID, save this in the database
+                task = Model.Task(
                     id=response["id"],
+                    name=subject,
+                    project=project,
+                    context=context,
+                    completed=subject.startswith("✔"),
+                )
+                View.Task(task, client).init()  # Set up the subject line
+                Model.Task.upsert(
+                    id=task.id,
                     name=task.name,
                     project=task.project,
                     context=task.context,
                     completed=task.completed,
                 )
+                # Send the updated subject line to Zulip
+                result = client.update_message(
+                    dict(message_id=task.id, topic=task.name, propogate_mode="change_all")
+                )
+                assert result["result"] == "success", result["msg"]
+
         else:
-            self.log.log("Not a project or not sending to a context")
+            self.log.info("Not a project or not sending to a context")
 
             response = bot_handler.send_message(
                 dict(
@@ -138,7 +141,7 @@ class GTDHandler:
                     subject=subject,
                     content=(
                         # Have a link back origining message unless this is a PM
-                        f"Created from #**{source['display_recipient']}>{source['subject']}"
+                        f"Created from #**{source['display_recipient']}>{source['subject']}**"
                         if source["type"] == "stream"
                         else subject
                     ),
@@ -192,10 +195,11 @@ class GTDHandler:
             return
 
         context, task = r.groups()
+        context = "@" + context
 
         # Ensure that the context stream exists
         stream_id = self._ensure_stream_exists(
-            stream=f"@{context}",
+            stream=context,
             description="",
             user_id=int(message["sender_id"]),
             client=client,
@@ -203,7 +207,7 @@ class GTDHandler:
 
         self._create_message_and_forward(
             source=message,
-            stream=f"@{context}",
+            stream=context,
             stream_id=stream_id,
             subject=task,
             client=client,
@@ -224,13 +228,13 @@ class GTDHandler:
     #         for stream in response['streams']:
     #             match stream['name']:
     #                 case 'Inbox' | name if name.startswith('Projects.'):
-    #                     self.log.log('Storing ProjectList `{name}`')
+    #                     self.log.info('Storing ProjectList',name=name)
     #                     ProjectList(id=stream['id'], name=name).save()
     #                 case name if name.startswith('@'):
-    #                     self.log.log('Storing Context `{name}`')
+    #                     self.log.info('Storing Context', name=name)
     #                     Context(id=stream['id'], name=name).save()
     #                 case name:
-    #                     self.log.log('Skipping stream: `{name}`')
+    #                     self.log.info('Skipping stream',name=name)
 
     #         for project_list in ProjectList.select():
     #             assert (response := client.get_stream_topics(project_list.id))['result'] == 'success'

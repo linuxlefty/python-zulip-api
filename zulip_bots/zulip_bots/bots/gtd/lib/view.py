@@ -11,7 +11,7 @@ from zulip_bots.lib import BotHandler
 
 
 class Project:
-    RE = re.compile(r".*\s+#(?P<project_list>[0-9A-Za-z]+)-(?P<project>[0-9A-Za-z]+)")
+    RE = re.compile(r"(?P<topic>.*)\s+#(?P<project_list>[0-9A-Z]+)-(?P<project>[0-9A-Z]+)")
 
     def __init__(self, project: Model.Project, client: zulip.Client) -> None:
         self.project = project
@@ -26,25 +26,24 @@ class Project:
         return None
 
     def init(self) -> bool:
-        return bool(self.name and self.id)
+        # Note, you have to initialize ID first so that the name can use it via hashid
+        return bool(self.id and self.name)
 
     @property
     def name(self):
         if groups := self.parse_name(cast(str, self.project.name)):
             if (
-                groups["project_id"] == self.project.project_list.id
+                groups["project_list"] == self.project.project_list.id
                 and groups["project"] == self.id
             ):
                 return self.project.name
 
             # Clear off old ID
             self.project.name = cast(
-                Model.CharField, cast(str, self.project.name).rpartition("#")[0]
+                Model.CharField, cast(str, self.project.name).rpartition("#")[0].strip()
             )
 
-        self.project.name += (
-            "#{KeyGen.encode(self.project.project_list.id)}-{KeyGen.encode(self.id)}"
-        )
+        self.project.name += f" #{Model.Keygen.encode(self.project.project_list)}-{Model.Keygen.encode(self.project)}"  # type: ignore
         self.dirty.add("name")
         return self.project.name
 
@@ -75,7 +74,7 @@ class Project:
 
 class Task:
     RE = re.compile(
-        r".*\s+#(?P<project>[0-9A-Za-z]+)-(?P<context>[0-9A-Za-z]+)-(?P<task>[0-9A-Za-z]+)"
+        r"(?P<topic>.*)\s+#(?P<project_list>[0-9A-Z]+)-(?P<project>[0-9A-Z]+)-(?P<context>[0-9A-Z]+)-(?P<task>[0-9A-Z]+)"
     )
 
     def __init__(self, task: Model.Task, client: zulip.Client):
@@ -90,22 +89,26 @@ class Task:
         return None
 
     def init(self) -> bool:
-        return bool(self.name and self.id)
+        # Note, you have to initialize ID first so that the name can use it via hashid
+        return bool(self.id and self.name)
 
     @property
     def name(self):
         if groups := self.parse_name(cast(str, self.task.name)):
             if (
                 groups["project"] == self.task.project.id
+                and groups["project_list"] == self.task.project.project_list.id
                 and groups["context"] == self.task.context.id
                 and groups["task"] == self.id
             ):
                 return self.task.name
 
             # Clear off old ID
-            self.task.name = cast(Model.CharField, cast(str, self.task.name).rpartition("#")[0])
+            self.task.name = cast(
+                Model.CharField, cast(str, self.task.name).rpartition("#")[0].strip()
+            )
 
-        self.task.name += "#{KeyGen.encode(self.project.project.id)}-{KeyGen.encode(self.context.id)}-{KeyGen.encode(self.id)}"
+        self.task.name += f" #{Model.Keygen.encode(self.task.project.project_list)}-{Model.Keygen.encode(self.task.project)}-{Model.Keygen.encode(self.task.context)}-{Model.Keygen.encode(self.task)}"  # type: ignore
         self.dirty.add("name")
         return self.task.id
 

@@ -1,14 +1,17 @@
 from __future__ import annotations
 
 import enum
+import string
 from typing import cast
 
+import structlog
 from hashids import Hashids
 from peewee import SqliteDatabase, Model, CharField, IntegerField, ForeignKeyField, BooleanField
 
 
-hashids = Hashids()
+hashids = Hashids(alphabet=string.digits + string.ascii_uppercase)
 db = SqliteDatabase(None)
+logger = structlog.get_logger()
 
 
 class ProjectList(Model):
@@ -21,6 +24,8 @@ class ProjectList(Model):
     @classmethod
     def upsert(cls, id: int | IntegerField, name: str | CharField) -> ProjectList:
         exists = cls.select().where(cls.id == id).get_or_none() != None
+        logger.debug("ProjectList upsert", id=id, name=name, exists=exists)
+
         obj = cls(id=id, name=name)
         obj.save(force_insert=not exists)
         return obj
@@ -36,6 +41,8 @@ class Context(Model):
     @classmethod
     def upsert(cls, id: int | IntegerField, name: str | CharField) -> Context:
         exists = cls.select().where(cls.id == id).get_or_none() != None
+        logger.debug("Context upsert", id=id, name=name, exists=exists)
+
         obj = cls(id=id, name=name)
         obj.save(force_insert=not exists)
         return obj
@@ -59,6 +66,15 @@ class Project(Model):
         completed: bool | BooleanField,
     ) -> Project:
         exists = cls.select().where(cls.id == id).get_or_none() != None
+        logger.debug(
+            "Project upsert",
+            id=id,
+            name=name,
+            project_list=project_list,
+            completed=completed,
+            exists=exists,
+        )
+
         obj = cls(id=id, name=name, project_list=project_list, completed=completed)
         obj.save(force_insert=not exists)
         return obj
@@ -84,6 +100,16 @@ class Task(Model):
         completed: bool | BooleanField,
     ) -> Task:
         exists = cls.select().where(cls.id == id).get_or_none() != None
+        logger.debug(
+            "Task upsert",
+            id=id,
+            name=name,
+            project=project,
+            context=context,
+            completed=completed,
+            exists=exists,
+        )
+
         obj = cls(id=id, name=name, project=project, context=context, completed=completed)
         obj.save(force_insert=not exists)
         return obj
@@ -132,6 +158,11 @@ class Keygen:
         char, id = hashids.decode(key)
         model = cls.ORD_2_MODEL[char]
         return model.select().where(model.id == id).get()
+
+    @classmethod
+    def decode_id(cls, key: str) -> int:
+        _, id = hashids.decode(key)
+        return id
 
     @classmethod
     def decode_all(cls, multikey: str) -> dict[str, Model]:
