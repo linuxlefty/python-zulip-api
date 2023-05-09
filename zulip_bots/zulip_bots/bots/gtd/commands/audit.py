@@ -51,7 +51,7 @@ class AuditCommand(BaseCommand):
                 else:
                     if isinstance(obj, Model.Project):
                         lines = ["This project has been associted with the following tasks:"]
-                        for task in obj.tasks: # type: ignore
+                        for task in obj.tasks:  # type: ignore
                             lines.append(
                                 f"* {self._internal_link_md(task.context.name, task.name)}"
                             )

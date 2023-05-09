@@ -26,7 +26,15 @@ from zulip_bots.bots.gtd.commands.audit import AuditCommand
 from zulip_bots.bots.gtd.commands.done import DoneCommand
 from zulip_bots.bots.gtd.commands.db import DbRebuildCommand, DbPurgeCommand
 
-COMMANDS = [InboxCommand, TodoCommand, DoneCommand, FindCommand, AuditCommand, DbRebuildCommand, DbPurgeCommand]
+COMMANDS = [
+    InboxCommand,
+    TodoCommand,
+    DoneCommand,
+    FindCommand,
+    AuditCommand,
+    DbRebuildCommand,
+    DbPurgeCommand,
+]
 
 
 class HelpCommand(BaseCommand):

@@ -30,8 +30,9 @@ class DoneCommand(BaseCommand):
             )
 
             # Mark it as done in Zulip
+            message["subject"] = "✔ " + message["subject"]
             response = client.update_message(
-                dict(message_id=obj.id, topic="✔ " + obj.name, propagate_mode="change_all")
+                dict(message_id=obj.id, topic=message["subject"], propagate_mode="change_all")
             )
 
             # Mark it as done in the database

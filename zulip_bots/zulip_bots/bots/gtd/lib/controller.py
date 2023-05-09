@@ -27,6 +27,7 @@ def find(
             name=topic,
             context=Context(client).find(id=stream_id, name=stream),
             completed=topic.startswith("✔"),
+            project=None,
         )
     else:
         raise UnableToFindError("I don't think this is either a project or task")
