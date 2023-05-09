@@ -36,7 +36,7 @@ class BaseCommand:
         return f"#**{stream}**"
 
     def _ensure_stream_exists(
-        self, description: str, user_id: int, stream: str, client: zulip.Client
+        self, stream: str, description: str, user_id: int, client: zulip.Client
     ) -> int:
         response = client.add_subscriptions(
             streams=[{"name": stream, "description": description}],

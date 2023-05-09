@@ -16,7 +16,7 @@ def find(
     stream: str, stream_id: int, topic: str, client: zulip.Client
 ) -> Model.Project | Model.Task:
     # This is a message, so that means it must either be a Project or a Task
-    if "Project" in stream:
+    if stream.startswith("Project"):
         return Project(client).find(
             name=topic,
             project_list=ProjectList(client).find(id=stream_id, name=stream),

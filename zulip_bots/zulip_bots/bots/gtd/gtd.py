@@ -24,11 +24,14 @@ from zulip_bots.bots.gtd.commands.todo import TodoCommand
 from zulip_bots.bots.gtd.commands.find import FindCommand
 from zulip_bots.bots.gtd.commands.audit import AuditCommand
 from zulip_bots.bots.gtd.commands.done import DoneCommand
+from zulip_bots.bots.gtd.commands.move import ProjectCommand, TaskCommand
 from zulip_bots.bots.gtd.commands.db import DbRebuildCommand, DbPurgeCommand
 
 COMMANDS = [
     InboxCommand,
     TodoCommand,
+    ProjectCommand,
+    TaskCommand,
     DoneCommand,
     FindCommand,
     AuditCommand,
