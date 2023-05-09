@@ -39,7 +39,6 @@ class Project:
             if Model.Keygen.decode_id(groups["project"]) == self.id:
                 return self.project.name
 
-            # breakpoint()
             # Clear off old ID
             self.project.name = cast(
                 Model.CharField, cast(str, self.project.name).rpartition("#")[0].strip()
@@ -105,13 +104,12 @@ class Task:
             if Model.Keygen.decode_id(groups["project"]) == self.id:
                 return self.task.name
 
-            task_name = cast(str, self.task.name)
+        task_name = cast(str, self.task.name)
+        if "#" in task_name:
             task_name = task_name.rpartition("#")[0].strip()  # Clear off old ID
-            if len(task_name) > 45:
-                task_name = task_name[:45] + "..."  # Truncate if it is too long
-            self.task.name = cast(Model.CharField, task_name)
-
-        self.task.name += f" #{Model.Keygen.encode(self.task.project)}"  # type: ignore
+        if len(task_name) > 45:
+            task_name = task_name[:45] + "..."  # Truncate if it is too long
+        self.task.name = cast(Model.CharField, task_name + f" #{Model.Keygen.encode(self.task.project)}")  # type: ignore
         self.dirty.add("name")
         return self.task.id
 

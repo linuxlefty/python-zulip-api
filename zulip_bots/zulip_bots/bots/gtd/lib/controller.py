@@ -12,6 +12,26 @@ class UnableToFindError(BaseException):
     pass
 
 
+def find(
+    stream: str, stream_id: int, topic: str, client: zulip.Client
+) -> Model.Project | Model.Task:
+    # This is a message, so that means it must either be a Project or a Task
+    if "Project" in stream:
+        return Project(client).find(
+            name=topic,
+            project_list=ProjectList(client).find(id=stream_id, name=stream),
+            completed=topic.startswith("✔"),
+        )
+    elif stream[0] == "@":
+        return Task(client).find(
+            name=topic,
+            context=Context(client).find(id=stream_id, name=stream),
+            completed=topic.startswith("✔"),
+        )
+    else:
+        raise UnableToFindError("I don't think this is either a project or task")
+
+
 class BaseController(Generic[T]):
     def __init__(self, client: zulip.Client):
         self.client = client

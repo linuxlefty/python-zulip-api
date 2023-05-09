@@ -23,7 +23,7 @@ class TodoCommand(BaseCommand):
         command, _, payload = message["content"].partition(" ")
         assert command == "todo"
 
-        if not (r := re.search(r'#\**"?@"?(?P<context>[\w\s]+)["\*]+\s+(?P<message>.*)', payload)):
+        if not (r := re.search(r'#\**"?@"?(?P<context>[^"\*]+)["\*]+\s+(?P<message>.*)', payload)):
             bot_handler.send_reply(
                 message, "Sorry, I couldn't parse that TODO. Try running `help`?"
             )

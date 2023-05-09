@@ -22,7 +22,11 @@ from zulip_bots.bots.gtd.commands.base import BaseCommand, Message
 from zulip_bots.bots.gtd.commands.inbox import InboxCommand
 from zulip_bots.bots.gtd.commands.todo import TodoCommand
 from zulip_bots.bots.gtd.commands.find import FindCommand
+from zulip_bots.bots.gtd.commands.audit import AuditCommand
+from zulip_bots.bots.gtd.commands.done import DoneCommand
 from zulip_bots.bots.gtd.commands.db import DbRebuildCommand, DbPurgeCommand
+
+COMMANDS = [InboxCommand, TodoCommand, DoneCommand, FindCommand, AuditCommand, DbRebuildCommand, DbPurgeCommand]
 
 
 class HelpCommand(BaseCommand):
@@ -41,7 +45,7 @@ class HelpCommand(BaseCommand):
 
     @classmethod
     def help(cls) -> str:
-        lines = [cls.usage(), "It supports the following commands:", "* `help`: prints this output"]
+        lines = list()
 
         for command in COMMANDS:
             lines.append(f"* `{command.META['command']}`: {command.META['description']}")
@@ -50,7 +54,7 @@ class HelpCommand(BaseCommand):
         return "\n".join(lines)
 
 
-COMMANDS = [HelpCommand, InboxCommand, TodoCommand, FindCommand, DbRebuildCommand, DbPurgeCommand]
+COMMANDS.insert(0, HelpCommand)
 
 
 class GTDHandler:
@@ -76,6 +80,7 @@ class GTDHandler:
     def handle_message(self, message: Message, bot_handler: BotHandler) -> None:
         assert self.db
         client: zulip.Client = bot_handler._client  # type: ignore
+        bot_handler.react(message, "robot")
 
         try:
             command = message["content"].partition(" ")[0]

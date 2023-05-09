@@ -1,4 +1,5 @@
 import uuid
+from typing import cast
 
 import structlog
 
@@ -95,7 +96,7 @@ class BaseCommand:
                     context=context,
                     completed=subject.startswith("✔"),
                 )
-                View.Task(task, client).init()  # Set up the subject line
+                (view := View.Task(task, client)).init()  # Set up the subject line
                 Model.Task.upsert(
                     id=task.id,
                     name=task.name,
@@ -103,11 +104,17 @@ class BaseCommand:
                     context=task.context,
                     completed=task.completed,
                 )
-                # Send the updated subject line to Zulip
-                result = client.update_message(
-                    dict(message_id=task.id, topic=task.name, propogate_mode="change_all")
+                if "name" in view.dirty:
+                    # Send the updated subject line to Zulip
+                    source["subject"] = cast(str, project.name)
+                    result = client.update_message(
+                        dict(message_id=task.id, topic=task.name, propogate_mode="change_all")
+                    )
+                    assert result["result"] == "success", result["msg"]
+
+                bot_handler.send_reply(
+                    source, f"Created {self._internal_link_md(stream,task.name)}"
                 )
-                assert result["result"] == "success", result["msg"]
 
         else:
             self.log.info("Not a project or not sending to a context")
@@ -128,8 +135,7 @@ class BaseCommand:
             assert response
             assert response and response["result"] == "success", response["msg"]
 
-        bot_handler.react(source, "robot")
-        bot_handler.send_reply(source, f"Created {self._internal_link_md(stream,subject)}")
+            bot_handler.send_reply(source, f"Created {self._internal_link_md(stream,subject)}")
 
     def execute(self, message: Message, client: zulip.Client, bot_handler: BotHandler) -> None:
         raise NotImplementedError()

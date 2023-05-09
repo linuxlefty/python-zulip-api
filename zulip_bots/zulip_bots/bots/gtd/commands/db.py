@@ -28,8 +28,13 @@ class DbRebuildCommand(BaseCommand):
         command, _, payload = message["content"].partition(" ")
         assert command == "db.rebuild"
 
-        assert self.db
         with self.db as db:
+            self.log.warning("Truncating tables")
+            Model.Task.truncate_table()
+            Model.Context.truncate_table()
+            Model.Project.truncate_table()
+            Model.ProjectList.truncate_table()
+
             assert (response := client.get_streams())["result"] == "success"
 
             for stream in response["streams"]:
@@ -119,9 +124,11 @@ class DbRebuildCommand(BaseCommand):
 
 
 class DbPurgeCommand(BaseCommand):
-    command = "db.purge"
-    usage = "db.purge"
-    description = "Deletes the internal database. Purges all project IDs from topic names. **WARNING** this is irreversable. Proceed with caution."
+    META = dict(
+        command="db.purge",
+        usage="db.purge",
+        description="Deletes the internal database. Purges all project IDs from topic names. **WARNING** this is irreversable. Proceed with caution.",
+    )
 
     def execute(self, message: Message, client: zulip.Client, bot_handler: BotHandler) -> None:
         """
@@ -131,7 +138,6 @@ class DbPurgeCommand(BaseCommand):
         assert command == "db.purge"
         assert payload == "--force", "This is a dangerous command. It must be called with '--force'"
 
-        assert self.db
         with self.db:
             self.log.warning("Truncating tables")
             Model.Task.truncate_table()
