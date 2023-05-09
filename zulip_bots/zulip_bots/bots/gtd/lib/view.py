@@ -107,8 +107,8 @@ class Task:
         task_name = cast(str, self.task.name)
         if "#" in task_name:
             task_name = task_name.rpartition("#")[0].strip()  # Clear off old ID
-        if len(task_name) > 45:
-            task_name = task_name[:45] + "..."  # Truncate if it is too long
+        if len(task_name) > 40:
+            task_name = task_name[:40] + "..."  # Truncate if it is too long
         self.task.name = cast(Model.CharField, task_name + f" #{Model.Keygen.encode(self.task.project)}")  # type: ignore
         self.dirty.add("name")
         return self.task.id
