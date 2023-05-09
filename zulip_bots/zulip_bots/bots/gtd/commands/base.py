@@ -59,7 +59,11 @@ class BaseCommand:
         bot_handler: BotHandler,
     ) -> None:
         assert self.db
-        if source["display_recipient"].startswith("Projects.") and stream.startswith("@"):
+        if (
+            source["type"] == "stream"
+            and source["display_recipient"].startswith("Project")
+            and stream.startswith("@")
+        ):
             self.log.info("Project and context detected. Updating database")
             with self.db as db:
                 project_list = ProjectList(client).find(

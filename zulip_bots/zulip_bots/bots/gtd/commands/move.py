@@ -13,7 +13,9 @@ class BaseMove(BaseCommand):
         command, _, payload = message["content"].partition(" ")
         assert command == self.META["command"]
 
-        assert message["subject"] == "Inbox", "Sorry this command has to be run in the Inbox"
+        assert (
+            message["display_recipient"] == "Inbox"
+        ), "Sorry this command has to be run in the Inbox"
 
         payload = payload.strip("# *")
         prefix = self.META["_payload_prefix"]
@@ -23,12 +25,15 @@ class BaseMove(BaseCommand):
             stream=payload.strip(), description="", user_id=int(message["sender_id"]), client=client
         )
 
-        client.update_message(dict(message_id=message["id"], stream_id=stream_id))
+        response = client.update_message(
+            dict(message_id=message["id"], stream_id=stream_id, propagate_mode="change_all")
+        )
+        assert response["result"] == "success", response["msg"]
 
         bot_handler.send_reply(message, f"Message moved to {payload}")
 
 
-class ProjectCommand(BaseCommand):
+class ProjectCommand(BaseMove):
     META = dict(
         command="project",
         usage="project <project list>",
@@ -37,7 +42,7 @@ class ProjectCommand(BaseCommand):
     )
 
 
-class TaskCommand(BaseCommand):
+class TaskCommand(BaseMove):
     META = dict(
         command="task",
         usage="task <context>",
