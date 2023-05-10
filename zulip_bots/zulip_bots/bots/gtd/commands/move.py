@@ -30,6 +30,9 @@ class BaseMove(BaseCommand):
         )
         assert response["result"] == "success", response["msg"]
 
+        # Update message since it moved
+        message["display_recipient"] = payload
+
         bot_handler.send_reply(message, f"Message moved to {payload}")
 
 
